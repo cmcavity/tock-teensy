@@ -104,7 +104,8 @@ impl<'a, U: UART> XConsole<'a, U> {
     }
 
     pub fn initialize(&self) {
-        self.uart.init(uart::UARTParams {
+        // TODO: Handle returncode
+        self.uart.configure(uart::UARTParameters {
             baud_rate: self.baud_rate,
             stop_bits: uart::StopBits::One,
             parity: uart::Parity::None,

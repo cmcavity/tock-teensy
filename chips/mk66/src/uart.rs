@@ -2,6 +2,7 @@
 
 use core::cell::Cell;
 use kernel::common::cells::TakeCell;
+use kernel::ReturnCode;
 use kernel::hil;
 use kernel::hil::uart;
 use core::mem;
@@ -35,7 +36,7 @@ impl Uart {
             rx_index: Cell::new(0),
         }
     }
-
+    
     pub fn handle_interrupt(&self) {
         let regs: &mut Registers = unsafe { mem::transmute(self.registers) };
         // Read byte from data register; reading S1 and D clears interrupt
@@ -176,7 +177,9 @@ impl hil::uart::UART for Uart {
         self.client.set(Some(client));
     }
 
-    fn init(&self, params: uart::UARTParams) {
+    // TODO: Do we need to remove some operations from configure?
+    
+    fn configure(&self, params: uart::UARTParameters) -> ReturnCode {
         self.enable_clock();
 
         self.set_parity(params.parity);
@@ -186,6 +189,8 @@ impl hil::uart::UART for Uart {
         self.enable_rx();
         self.enable_rx_interrupts();
         self.enable_tx();
+
+        ReturnCode::SUCCESS
     }
 
     fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize) {

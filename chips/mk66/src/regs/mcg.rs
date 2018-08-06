@@ -1,4 +1,4 @@
-use kernel::common::regs::{ReadWrite, ReadOnly};
+use kernel::common::registers::{ReadWrite, ReadOnly};
 
 pub const MCG: *mut Registers = 0x4006_4000 as *mut Registers;
 

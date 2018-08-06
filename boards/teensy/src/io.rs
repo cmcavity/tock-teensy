@@ -1,8 +1,9 @@
 use core::fmt::*;
-use kernel::hil::uart::{self, UART};
+use core::panic::PanicInfo;
 use kernel::hil::led;
 use kernel::debug;
 use mk66::{self, gpio};
+use cortexm4;
 
 pub struct Writer {
     initialized: bool,
@@ -15,12 +16,7 @@ impl Write for Writer {
         let uart = unsafe { &mut mk66::uart::UART0 };
         if !self.initialized {
             self.initialized = true;
-            uart.init(uart::UARTParams {
-                baud_rate: 115200,
-                stop_bits: uart::StopBits::One,
-                parity: uart::Parity::None,
-                hw_flow_control: false,
-            });
+            // TODO: init uart here?
             uart.enable_tx();
         }
 
@@ -36,15 +32,15 @@ impl Write for Writer {
 #[cfg(not(test))]
 #[no_mangle]
 #[allow(unused_variables)]
-#[lang="panic_fmt"]
-pub unsafe extern "C" fn panic_fmt(args: Arguments, file: &'static str, line: u32) -> ! {
+#[panic_implementation]
+pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
     let writer = &mut WRITER;
 
     // blink the panic signal
     gpio::PC05.release_claim();
     let led = &mut led::LedLow::new(gpio::PC05.claim_as_gpio());
 
-    debug::panic(led, writer, args, file, line)
+    debug::panic(&mut [led], writer, pi, &cortexm4::support::nop)
 }
 
 #[macro_export]

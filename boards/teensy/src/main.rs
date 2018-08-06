@@ -1,8 +1,11 @@
 #![no_std]
 #![no_main]
 #![feature(asm,const_fn,lang_items)]
+#![feature(panic_implementation)]
 
 extern crate capsules;
+
+extern crate cortexm4;
 
 #[macro_use(debug, static_init, register_bitfields, register_bitmasks)]
 extern crate kernel;
@@ -110,11 +113,14 @@ pub unsafe fn reset_handler() {
     if tests::TEST {
         tests::test();
     }
-    kernel::kernel_loop(&teensy, &mut chip, load_processes(), Some(&teensy.ipc));
+  
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new());
+
+    board_kernel.kernel_loop(&teensy, &mut chip, load_processes(board_kernel), Some(&teensy.ipc));
 }
 
 
-unsafe fn load_processes() -> &'static mut [Option<&'static mut kernel::procs::Process<'static>>] {
+unsafe fn load_processes(board_kernel: &'static kernel::Kernel) -> &'static mut [Option<&'static mut kernel::procs::Process<'static>>] {
     extern "C" {
         /// Beginning of the ROM region containing the app images.
         static _sapps: u8;
@@ -132,6 +138,7 @@ unsafe fn load_processes() -> &'static mut [Option<&'static mut kernel::procs::P
     static mut PROCESSES: [Option<&'static mut kernel::procs::Process<'static>>; NUM_PROCS] = [None];
 
     kernel::procs::load_processes(
+        board_kernel,
         &_sapps as *const u8,
         &mut APP_MEMORY,
         &mut PROCESSES,

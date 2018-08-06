@@ -1,6 +1,6 @@
 #[allow(unused)]
 
-use kernel::common::regs::ReadWrite;
+use kernel::common::registers::ReadWrite;
 
 struct Registers {
     c1: ReadWrite<u8, Control::Register>,

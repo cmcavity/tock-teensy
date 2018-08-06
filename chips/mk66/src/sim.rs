@@ -2,7 +2,7 @@
 
 use core::mem;
 use regs::sim::*;
-use kernel::common::regs::FieldValue;
+use kernel::common::registers::FieldValue;
 
 pub type Clock1 = FieldValue<u32, SystemClockGatingControl1::Register>;
 pub type Clock2 = FieldValue<u32, SystemClockGatingControl2::Register>;

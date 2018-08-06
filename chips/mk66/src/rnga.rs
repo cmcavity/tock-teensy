@@ -7,7 +7,7 @@
 //! - Author: Conor McAvity <cmcavity@stanford.edu>
 
 use core::cell::Cell;
-use kernel::common::regs::{ReadWrite, WriteOnly, ReadOnly};
+use kernel::common::registers::{ReadWrite, WriteOnly, ReadOnly};
 use kernel::hil::rng::{self, Continue};
 use sha2::{Sha256, Digest};
 use twofish::{Twofish, BlockCipher};

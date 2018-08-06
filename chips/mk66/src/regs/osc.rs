@@ -1,4 +1,4 @@
-use kernel::common::regs::ReadWrite;
+use kernel::common::registers::ReadWrite;
 
 pub const OSC: *mut Registers = 0x4006_5000 as *mut Registers;
 

@@ -1,4 +1,4 @@
-use kernel::common::regs::ReadWrite;
+use kernel::common::registers::ReadWrite;
 
 #[repr(C)]
 pub struct Registers {
