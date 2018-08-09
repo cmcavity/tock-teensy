@@ -119,62 +119,46 @@ register_bitfields![u32,
         M3PE OFFSET(23) NUMBITS(1) [],
         /// Bus Master 3 Supervisor Mode Access Control
         M3SM OFFSET(21) NUMBITS(2) [
-            ReadWriteExecute = 0,
-            ReadExecuteOnly = 1,
-            ReadWriteOnly = 2,
-            SameAsUserMode = 3
+            ReadWriteExecute = 0b00,
+            ReadExecuteOnly = 0b01,
+            ReadWriteOnly = 0b10,
+            SameAsUserMode = 0b11 
         ],
-        /// Bus Master 3 User Mode Access Control - Execute 
-        M3UM_X OFFSET(20) NUMBITS(1) [],
-        /// Bus Master 3 User Mode Access Control - Write 
-        M3UM_W OFFSET(19) NUMBITS(1) [],
-        /// Bus Master 3 User Mode Access Control - Read 
-        M3UM_R OFFSET(18) NUMBITS(1) [],
+        /// Bus Master 3 User Mode Access Control
+        M3UM OFFSET(18) NUMBITS(3) [],
         /// Bus Master 2 Process Identifier Enable
         M2PE OFFSET(17) NUMBITS(1) [],
         /// Bus Master 2 Supervisor Mode Access Control
         M2SM OFFSET(15) NUMBITS(2) [
-            ReadWriteExecute = 0,
-            ReadExecuteOnly = 1,
-            ReadWriteOnly = 2,
-            SameAsUserMode = 3
+            ReadWriteExecute = 0b00,
+            ReadExecuteOnly = 0b01,
+            ReadWriteOnly = 0b10,
+            SameAsUserMode = 0b11 
         ],
-        /// Bus Master 2 User Mode Access Control - Execute 
-        M2UM_X OFFSET(14) NUMBITS(1) [],
-        /// Bus Master 2 User Mode Access Control - Write 
-        M2UM_W OFFSET(13) NUMBITS(1) [],
-        /// Bus Master 2 User Mode Access Control - Read 
-        M2UM_R OFFSET(12) NUMBITS(1) [],
+        /// Bus Master 2 User Mode Access Control 
+        M2UM OFFSET(12) NUMBITS(3) [],
         /// Bus Master 1 Process Identifier Enable
         M1PE OFFSET(11) NUMBITS(1) [],
         /// Bus Master 1 Supervisor Mode Access Control
         M1SM OFFSET(9) NUMBITS(2) [
-            ReadWriteExecute = 0,
-            ReadExecuteOnly = 1,
-            ReadWriteOnly = 2,
-            SameAsUserMode = 3
+            ReadWriteExecute = 0b00,
+            ReadExecuteOnly = 0b01,
+            ReadWriteOnly = 0b10,
+            SameAsUserMode = 0b11 
         ],
-        /// Bus Master 1 User Mode Access Control - Execute 
-        M1UM_X OFFSET(8) NUMBITS(1) [],
-        /// Bus Master 1 User Mode Access Control - Write 
-        M1UM_W OFFSET(7) NUMBITS(1) [],
-        /// Bus Master 1 User Mode Access Control - Read 
-        M1UM_R OFFSET(6) NUMBITS(1) [],
+        /// Bus Master 1 User Mode Access Control
+        M1UM OFFSET(6) NUMBITS(3) [],
         /// Bus Master 0 Process Identifier Enable
         M0PE OFFSET(5) NUMBITS(1) [],
         /// Bus Master 0 Supervisor Mode Access Control
         M0SM OFFSET(3) NUMBITS(2) [
-            ReadWriteExecute = 0,
-            ReadExecuteOnly = 1,
-            ReadWriteOnly = 2,
-            SameAsUserMode = 3
+            ReadWriteExecute = 0b00,
+            ReadExecuteOnly = 0b01,
+            ReadWriteOnly = 0b10,
+            SameAsUserMode = 0b11 
         ],
-        /// Bus Master 0 User Mode Access Control - Execute 
-        M0UM_X OFFSET(2) NUMBITS(1) [],
-        /// Bus Master 0 User Mode Access Control - Write 
-        M0UM_W OFFSET(1) NUMBITS(1) [],
-        /// Bus Master 0 User Mode Access Control - Read 
-        M0UM_R OFFSET(0) NUMBITS(1) []
+        /// Bus Master 0 User Mode Access Control 
+        M0UM OFFSET(0) NUMBITS(3) []
     ],
 
     RegionDescriptorWord3 [
@@ -206,9 +190,7 @@ impl mpu::MPU for Mpu {
         // the entire 4 GB memory space to the core in both supervisor and user
         // mode, so we disable access for user mode
         regs.rgdaacs[0].0.modify(RegionDescriptorWord2::M0SM::ReadWriteExecute);
-        regs.rgdaacs[0].0.modify(RegionDescriptorWord2::M0UM_R::CLEAR 
-                                 + RegionDescriptorWord2::M0UM_W::CLEAR 
-                                 + RegionDescriptorWord2::M0UM_X::CLEAR);
+        regs.rgdaacs[0].0.modify(RegionDescriptorWord2::M0UM::CLEAR);
 
         regs.cesr.modify(ControlErrorStatus::VLD::Enable);
     }    
@@ -219,14 +201,63 @@ impl mpu::MPU for Mpu {
     }
 
     fn create_region(
-        _: usize,
-        _: usize,
-        _: usize,
-        _: mpu::ExecutePermission,
-        _: mpu::AccessPermission,
+        region_num: usize,
+        start: usize,
+        len: usize,
+        execute: mpu::ExecutePermission,
+        access: mpu::AccessPermission,
     ) -> Option<mpu::Region> {
-        Some(mpu::Region::empty(0))  
+        // First region is reserved
+        let region_num = region_num + 1;
+
+        if region_num > 11 || start % 32 != 0 || len % 32 != 0 {
+            return None;
+        }
+
+        // Ignore supervisor permissions
+        let user = match (access, execute) {
+            (mpu::AccessPermission::NoAccess, mpu::ExecutePermission::ExecutionPermitted) => 0b001,
+            (mpu::AccessPermission::NoAccess, mpu::ExecutePermission::ExecutionNotPermitted) => 0b000,
+            (mpu::AccessPermission::PrivilegedOnly, mpu::ExecutePermission::ExecutionPermitted) => 0b001, 
+            (mpu::AccessPermission::PrivilegedOnly, mpu::ExecutePermission::ExecutionNotPermitted) => 0b000,
+            (mpu::AccessPermission::UnprivilegedReadOnly, mpu::ExecutePermission::ExecutionPermitted) => 0b101, 
+            (mpu::AccessPermission::UnprivilegedReadOnly, mpu::ExecutePermission::ExecutionNotPermitted) => 0b100,
+            (mpu::AccessPermission::ReadWrite, mpu::ExecutePermission::ExecutionPermitted) => 0b111,
+            (mpu::AccessPermission::ReadWrite, mpu::ExecutePermission::ExecutionNotPermitted) => 0b110, 
+            (mpu::AccessPermission::Reserved, mpu::ExecutePermission::ExecutionPermitted) => return None,
+            (mpu::AccessPermission::Reserved, mpu::ExecutePermission::ExecutionNotPermitted) => return None, 
+            (mpu::AccessPermission::PrivilegedOnlyReadOnly, mpu::ExecutePermission::ExecutionPermitted) => 0b001, 
+            (mpu::AccessPermission::PrivilegedOnlyReadOnly, mpu::ExecutePermission::ExecutionNotPermitted) => 0b000, 
+            (mpu::AccessPermission::ReadOnly, mpu::ExecutePermission::ExecutionPermitted) => 0b101, 
+            (mpu::AccessPermission::ReadOnly, mpu::ExecutePermission::ExecutionNotPermitted) => 0b100, 
+            (mpu::AccessPermission::ReadOnlyAlias, mpu::ExecutePermission::ExecutionPermitted) => 0b101, 
+            (mpu::AccessPermission::ReadOnlyAlias, mpu::ExecutePermission::ExecutionNotPermitted) => 0b100, 
+        };
+
+        // With the current interface, we have to pack all the region configuration into these 2 words
+        let base_address = (start | region_num) as u32;   
+        let attributes = ((start + len) | user) as u32;
+
+        let region = unsafe { mpu::Region::new(base_address, attributes) };
+
+        Some(region)
     }
 
-    fn set_mpu(&self, _: mpu::Region) {}
+    fn set_mpu(&self, region: mpu::Region) {
+        let regs = &*self.0;
+
+        let base_address = region.base_address();
+        let attributes = region.attributes();
+
+        let start = base_address >> 5; 
+        let region_num = (base_address & 0x1f) as usize;
+        let end = attributes >> 5;
+        let user = attributes & 0x7;
+
+        // Write to region descriptor
+        regs.rgds[region_num].rgd_word0.write(RegionDescriptorWord0::SRTADDR.val(start));
+        regs.rgds[region_num].rgd_word1.write(RegionDescriptorWord1::ENDADDR.val(end));
+        regs.rgds[region_num].rgd_word2.write(RegionDescriptorWord2::M0SM::SameAsUserMode + RegionDescriptorWord2::M0UM.val(user));
+        regs.rgds[region_num].rgd_word3.write(RegionDescriptorWord3::VLD::SET);
+    }
 }
