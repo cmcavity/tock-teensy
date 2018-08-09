@@ -76,10 +76,10 @@ register_bitfields![u32,
         EMN OFFSET(4) NUMBITS(4) [],
         /// Error Attributes
         EATTR OFFSET(1) NUMBITS(3) [
-            UserInstruction = 0,
-            UserData = 1,
-            SupervisorInstruction = 2,
-            SupervisorData = 3
+            UserModeInstructionAccess = 0,
+            UserModeDataAccess = 1,
+            SupervisorModeInstructionAccess = 2,
+            SupervisorModeDataAccess = 3
         ],
         /// Error Read/Write
         ERW OFFSET(1) NUMBITS(1) [
@@ -106,7 +106,7 @@ register_bitfields![u32,
         /// Bus Master 6 Read Enable
         M6RE OFFSET(29) NUMBITS(1) [],
         /// Bus Master 6 Write Enable
-        M6RW OFFSET(28) NUMBITS(1) [],
+        M6WE OFFSET(28) NUMBITS(1) [],
         /// Bus Master 5 Read Enable
         M5RE OFFSET(27) NUMBITS(1) [],
         /// Bus Master 5 Write Enable
@@ -114,7 +114,7 @@ register_bitfields![u32,
         /// Bus Master 4 Read Enable
         M4RE OFFSET(25) NUMBITS(1) [],
         /// Bus Master 4 Write Enable
-        M4RW OFFSET(24) NUMBITS(1) [],
+        M4WE OFFSET(24) NUMBITS(1) [],
         /// Bus Master 3 Process Identifier Enable
         M3PE OFFSET(23) NUMBITS(1) [],
         /// Bus Master 3 Supervisor Mode Access Control
@@ -122,7 +122,7 @@ register_bitfields![u32,
             ReadWriteExecute = 0,
             ReadExecuteOnly = 1,
             ReadWriteOnly = 2,
-            SameAsUser = 3
+            SameAsUserMode = 3
         ],
         /// Bus Master 3 User Mode Access Control - Execute 
         M3UM_X OFFSET(20) NUMBITS(1) [],
@@ -137,7 +137,7 @@ register_bitfields![u32,
             ReadWriteExecute = 0,
             ReadExecuteOnly = 1,
             ReadWriteOnly = 2,
-            SameAsUser = 3
+            SameAsUserMode = 3
         ],
         /// Bus Master 2 User Mode Access Control - Execute 
         M2UM_X OFFSET(14) NUMBITS(1) [],
@@ -152,7 +152,7 @@ register_bitfields![u32,
             ReadWriteExecute = 0,
             ReadExecuteOnly = 1,
             ReadWriteOnly = 2,
-            SameAsUser = 3
+            SameAsUserMode = 3
         ],
         /// Bus Master 1 User Mode Access Control - Execute 
         M1UM_X OFFSET(8) NUMBITS(1) [],
@@ -167,7 +167,7 @@ register_bitfields![u32,
             ReadWriteExecute = 0,
             ReadExecuteOnly = 1,
             ReadWriteOnly = 2,
-            SameAsUser = 3
+            SameAsUserMode = 3
         ],
         /// Bus Master 0 User Mode Access Control - Execute 
         M0UM_X OFFSET(2) NUMBITS(1) [],
