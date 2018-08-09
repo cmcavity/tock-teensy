@@ -21,9 +21,9 @@ struct MpuRegionDescriptor {
 }
 
 #[repr(C)]
-struct MpuAlternateAccessControl {
-    rgdaac: ReadWrite<u32, RegionDescriptorWord2::Register>,
-}
+struct MpuAlternateAccessControl( 
+    ReadWrite<u32, RegionDescriptorWord2::Register>
+);
 
 #[repr(C)]
 struct MpuRegisters {
@@ -201,6 +201,15 @@ impl Mpu {
 impl mpu::MPU for Mpu {
     fn enable_mpu(&self) {
         let regs = &*self.0;
+
+        // On reset, region descriptor 0 is allocated to give full access to 
+        // the entire 4 GB memory space to the core in both supervisor and user
+        // mode, so we disable access for user mode
+        regs.rgdaacs[0].0.modify(RegionDescriptorWord2::M0SM::ReadWriteExecute);
+        regs.rgdaacs[0].0.modify(RegionDescriptorWord2::M0UM_R::CLEAR 
+                                 + RegionDescriptorWord2::M0UM_W::CLEAR 
+                                 + RegionDescriptorWord2::M0UM_X::CLEAR);
+
         regs.cesr.modify(ControlErrorStatus::VLD::Enable);
     }    
     
