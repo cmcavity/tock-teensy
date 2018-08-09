@@ -16,6 +16,11 @@ include ../../tock/boards/Makefile.common
 program: target/$(TARGET)/release/$(PLATFORM).hex
 	$(TEENSY_LOADER) -mmcu=$(MCU) -v -w $<
 
+target/$(TARGET)/release/$(PLATFORM).hex: target/$(TARGET)/release/$(PLATFORM).elf
+	$(Q)arm-none-eabi-objcopy -Oihex $^ $@
+
+target/$(TARGET)/debug/$(PLATFORM).hex: target/$(TARGET)/debug/$(PLATFORM).elf
+	$(Q)arm-none-eabi-objcopy -Oihex $^ $@
 
 .PHONY: app
 app: target/$(TARGET)/release/$(PLATFORM)-$(APP_NAME).hex
@@ -28,7 +33,7 @@ app: target/$(TARGET)/release/$(PLATFORM)-$(APP_NAME).hex
 
 
 target/$(TARGET)/release/$(PLATFORM)-$(APP_NAME): target/$(TARGET)/release/$(PLATFORM) ../../apps/$(APP)/build/$(TOCK_ARCH)/app 
-	$(Q)$(OBJCOPY) --update-section .apps=../../apps/$(APP)/build/cortex-m4/cortex-m4.tbf \
+	$(Q)arm-none-eabi-objcopy --update-section .apps=../../apps/$(APP)/build/cortex-m4/cortex-m4.tbf \
 		--set-section-flags .apps=alloc,code \
 		target/$(TARGET)/release/$(PLATFORM) $@
 
@@ -36,4 +41,4 @@ target/$(TARGET)/release/$(PLATFORM)-$(APP_NAME).elf: target/$(TARGET)/release/$
 	$(Q)cp $^ $@
 
 target/$(TARGET)/release/$(PLATFORM)-$(APP_NAME).hex: target/$(TARGET)/release/$(PLATFORM)-$(APP_NAME).elf
-	$(Q)$(OBJCOPY) -Oihex $^ $@
+	$(Q)arm-none-eabi-objcopy -Oihex $^ $@
