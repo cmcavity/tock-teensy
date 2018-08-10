@@ -226,30 +226,25 @@ impl mpu::MPU for Mpu {
         // First region is reserved
         let region_num = region_num + 1;
 
-        // We only have 12 regions, and regions must be 32-byte aligned
+        // We only have 12 region descriptors, and regions must be 32-byte aligned
         if region_num > 11 || start % 32 != 0 || len % 32 != 0 {
             return None;
         }
 
-        // Ignore supervisor permissions
-        let user = match (access, execute) {
-            (mpu::AccessPermission::NoAccess, mpu::ExecutePermission::ExecutionPermitted) => 0b001,
-            (mpu::AccessPermission::NoAccess, mpu::ExecutePermission::ExecutionNotPermitted) => 0b000,
-            (mpu::AccessPermission::PrivilegedOnly, mpu::ExecutePermission::ExecutionPermitted) => 0b001, 
-            (mpu::AccessPermission::PrivilegedOnly, mpu::ExecutePermission::ExecutionNotPermitted) => 0b000,
-            (mpu::AccessPermission::UnprivilegedReadOnly, mpu::ExecutePermission::ExecutionPermitted) => 0b101, 
-            (mpu::AccessPermission::UnprivilegedReadOnly, mpu::ExecutePermission::ExecutionNotPermitted) => 0b100,
-            (mpu::AccessPermission::ReadWrite, mpu::ExecutePermission::ExecutionPermitted) => 0b111,
-            (mpu::AccessPermission::ReadWrite, mpu::ExecutePermission::ExecutionNotPermitted) => 0b110, 
-            (mpu::AccessPermission::Reserved, mpu::ExecutePermission::ExecutionPermitted) => return None,
-            (mpu::AccessPermission::Reserved, mpu::ExecutePermission::ExecutionNotPermitted) => return None, 
-            (mpu::AccessPermission::PrivilegedOnlyReadOnly, mpu::ExecutePermission::ExecutionPermitted) => 0b001, 
-            (mpu::AccessPermission::PrivilegedOnlyReadOnly, mpu::ExecutePermission::ExecutionNotPermitted) => 0b000, 
-            (mpu::AccessPermission::ReadOnly, mpu::ExecutePermission::ExecutionPermitted) => 0b101, 
-            (mpu::AccessPermission::ReadOnly, mpu::ExecutePermission::ExecutionNotPermitted) => 0b100, 
-            (mpu::AccessPermission::ReadOnlyAlias, mpu::ExecutePermission::ExecutionPermitted) => 0b101, 
-            (mpu::AccessPermission::ReadOnlyAlias, mpu::ExecutePermission::ExecutionNotPermitted) => 0b100, 
+        let mut user = match access {
+            mpu::AccessPermission::NoAccess => 0b000,
+            mpu::AccessPermission::PrivilegedOnly => 0b000,
+            mpu::AccessPermission::UnprivilegedReadOnly => 0b100,
+            mpu::AccessPermission::ReadWrite => 0b110, 
+            mpu::AccessPermission::Reserved => return None, 
+            mpu::AccessPermission::PrivilegedOnlyReadOnly => 0b000, 
+            mpu::AccessPermission::ReadOnly => 0b100, 
+            mpu::AccessPermission::ReadOnlyAlias => 0b100, 
         };
+
+        if let mpu::ExecutePermission::ExecutionPermitted = execute {
+            user &= 0b001;
+        }
 
         // With the current interface, we have to pack all the region configuration into this Cortex-M specific struct
         let base_address = (start | region_num) as u32;   
