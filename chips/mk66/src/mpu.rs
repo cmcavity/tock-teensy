@@ -28,8 +28,11 @@ struct MpuAlternateAccessControl(
 #[repr(C)]
 struct MpuRegisters {
     cesr: ReadWrite<u32, ControlErrorStatus::Register>,
+    _reserved0: [u32; 3],
     ers: [MpuErrorRegisters; 5],
+    _reserved1: [u32; 242],
     rgds: [MpuRegionDescriptor; 12],
+    _reserved2: [u32; 208],
     rgdaacs: [MpuAlternateAccessControl; 12],
 }
 
@@ -253,6 +256,9 @@ impl mpu::MPU for Mpu {
         let region_num = (base_address & 0x1f) as usize;
         let end = attributes >> 5;
         let user = attributes & 0x7;
+
+        let num = regs.rgds[0].rgd_word1.read(RegionDescriptorWord1::ENDADDR);
+        debug!("Num: {:#X}", num);
 
         // Write to region descriptor
         //regs.rgds[region_num].rgd_word0.write(RegionDescriptorWord0::SRTADDR.val(start));
