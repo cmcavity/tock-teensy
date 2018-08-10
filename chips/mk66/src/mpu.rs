@@ -243,7 +243,7 @@ impl mpu::MPU for Mpu {
         };
 
         if let mpu::ExecutePermission::ExecutionPermitted = execute {
-            user &= 0b001;
+            user |= 0b001;
         }
 
         // With the current interface, we have to pack all the region configuration into this Cortex-M specific struct
