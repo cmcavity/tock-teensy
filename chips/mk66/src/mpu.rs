@@ -189,8 +189,8 @@ impl mpu::MPU for Mpu {
         // On reset, region descriptor 0 is allocated to give full access to 
         // the entire 4 GB memory space to the core in both supervisor and user
         // mode, so we disable access for user mode
-        regs.rgdaacs[0].0.modify(RegionDescriptorWord2::M0SM::ReadWriteExecute);
-        regs.rgdaacs[0].0.modify(RegionDescriptorWord2::M0UM::CLEAR);
+        //regs.rgdaacs[0].0.modify(RegionDescriptorWord2::M0SM::ReadWriteExecute);
+        //regs.rgdaacs[0].0.modify(RegionDescriptorWord2::M0UM::CLEAR);
 
         regs.cesr.modify(ControlErrorStatus::VLD::Enable);
     }    
@@ -255,9 +255,9 @@ impl mpu::MPU for Mpu {
         let user = attributes & 0x7;
 
         // Write to region descriptor
-        regs.rgds[region_num].rgd_word0.write(RegionDescriptorWord0::SRTADDR.val(start));
-        regs.rgds[region_num].rgd_word1.write(RegionDescriptorWord1::ENDADDR.val(end));
-        regs.rgds[region_num].rgd_word2.write(RegionDescriptorWord2::M0SM::SameAsUserMode + RegionDescriptorWord2::M0UM.val(user));
-        regs.rgds[region_num].rgd_word3.write(RegionDescriptorWord3::VLD::SET);
+        //regs.rgds[region_num].rgd_word0.write(RegionDescriptorWord0::SRTADDR.val(start));
+        //regs.rgds[region_num].rgd_word1.write(RegionDescriptorWord1::ENDADDR.val(end));
+        //regs.rgds[region_num].rgd_word2.write(RegionDescriptorWord2::M0SM::SameAsUserMode + RegionDescriptorWord2::M0UM.val(user));
+        //regs.rgds[region_num].rgd_word3.write(RegionDescriptorWord3::VLD::SET);
     }
 }
