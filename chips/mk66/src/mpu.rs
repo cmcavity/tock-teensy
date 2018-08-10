@@ -230,6 +230,9 @@ impl mpu::MPU for Mpu {
         if region_num > 11 || start % 32 != 0 || len % 32 != 0 {
             return None;
         }
+ 
+        // The end address register is always 31 modulo 32
+        let end = (start + len - 1) & !0x1f;
 
         let mut user = match access {
             mpu::AccessPermission::NoAccess => 0b000,
@@ -248,7 +251,7 @@ impl mpu::MPU for Mpu {
 
         // With the current interface, we have to pack all the region configuration into this Cortex-M specific struct
         let base_address = (start | region_num) as u32;   
-        let attributes = ((start + len) | user) as u32;
+        let attributes = (end | user) as u32;
 
         let region = unsafe { mpu::Region::new(base_address, attributes) };
 
