@@ -1,5 +1,13 @@
 //! Implementation of the MK66 memory protection unit.
 //!
+//! This implementation relies on some hacks to work around the current
+//! MPU interface, which is highly Cortex-M specific.
+//!
+//! Note that the current process.rs requests a grant region disallowing
+//! user access overlapping a process memory region allowing full user access. 
+//! On this MPU, this overlap gives the user full access the grant region, 
+//! which is unintended behaviour.
+//!
 //! - Author: Conor McAvity <cmcavity@stanford.edu>
 
 use kernel::common::regs::{ReadOnly, ReadWrite};
@@ -25,14 +33,19 @@ struct MpuAlternateAccessControl(
     ReadWrite<u32, RegionDescriptorWord2::Register>
 );
 
+
+/// MPU registers for the K66
+///
+/// Described in section 22.4 of
+/// <https://www.nxp.com/docs/en/reference-manual/K66P144M180SF5RMV2.pdf>
 #[repr(C)]
 struct MpuRegisters {
     cesr: ReadWrite<u32, ControlErrorStatus::Register>,
-    _reserved0: [u32; 3],
+    _unused0: [u32; 3],
     ers: [MpuErrorRegisters; 5],
-    _reserved1: [u32; 242],
+    _unused1: [u32; 242],
     rgds: [MpuRegionDescriptor; 12],
-    _reserved2: [u32; 208],
+    _unused2: [u32; 208],
     rgdaacs: [MpuAlternateAccessControl; 12],
 }
 
@@ -213,6 +226,7 @@ impl mpu::MPU for Mpu {
         // First region is reserved
         let region_num = region_num + 1;
 
+        // We only have 12 regions, and regions must be 32-byte aligned
         if region_num > 11 || start % 32 != 0 || len % 32 != 0 {
             return None;
         }
@@ -237,7 +251,7 @@ impl mpu::MPU for Mpu {
             (mpu::AccessPermission::ReadOnlyAlias, mpu::ExecutePermission::ExecutionNotPermitted) => 0b100, 
         };
 
-        // With the current interface, we have to pack all the region configuration into these 2 words
+        // With the current interface, we have to pack all the region configuration into this Cortex-M specific struct
         let base_address = (start | region_num) as u32;   
         let attributes = ((start + len) | user) as u32;
 
@@ -252,8 +266,8 @@ impl mpu::MPU for Mpu {
         let base_address = region.base_address();
         let attributes = region.attributes();
 
-        // This is a bit of a hack. This condition is currently only met when process.rs wants 
-        // an "empty" region.
+        // This condition is only met if the region end and user permissions are both 0,
+        // or more likely, that process.rs directly passed in a Cortex-M specific "empty" region
         if attributes == 0 {
             return;
         }
