@@ -1,5 +1,6 @@
 use core::fmt::*;
 use core::panic::PanicInfo;
+use kernel::hil::uart::{self, UART};
 use kernel::hil::led;
 use kernel::debug;
 use mk66::{self, gpio};
@@ -16,7 +17,12 @@ impl Write for Writer {
         let uart = unsafe { &mut mk66::uart::UART0 };
         if !self.initialized {
             self.initialized = true;
-            // TODO: init uart here?
+            uart.init(uart::UARTParams {
+                baud_rate: 115200,
+                stop_bits: uart::StopBits::One,
+                parity: uart::Parity::None,
+                hw_flow_control: false,
+            });
             uart.enable_tx();
         }
 

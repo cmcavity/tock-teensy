@@ -2,7 +2,6 @@
 
 use core::cell::Cell;
 use kernel::common::cells::TakeCell;
-use kernel::ReturnCode;
 use kernel::hil;
 use kernel::hil::uart;
 use core::mem;
@@ -176,10 +175,8 @@ impl hil::uart::UART for Uart {
     fn set_client(&self, client: &'static hil::uart::Client) {
         self.client.set(Some(client));
     }
-
-    // TODO: Do we need to remove some operations from configure?
     
-    fn configure(&self, params: uart::UARTParameters) -> ReturnCode {
+    fn init(&self, params: uart::UARTParams) {
         self.enable_clock();
 
         self.set_parity(params.parity);
@@ -189,8 +186,6 @@ impl hil::uart::UART for Uart {
         self.enable_rx();
         self.enable_rx_interrupts();
         self.enable_tx();
-
-        ReturnCode::SUCCESS
     }
 
     fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize) {
