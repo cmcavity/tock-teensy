@@ -12,7 +12,7 @@
 
 use kernel::common::regs::{ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
-use kernel::mpu;
+use kernel::mpu::{self, Permissions};
 
 #[repr(C)]
 struct MpuErrorRegisters {
@@ -198,16 +198,90 @@ impl Mpu {
     }
 }
 
+const APP_MEMORY_INDEX = 1;
+
+pub struct MK66Config {
+    memory: Option<(u32, u32)>,
+    regions: [Option<Region>; 11],
+}
+
+impl Default for MK66Config {
+    fn default() -> MK66Config {
+        MK66Config {
+            memory: None,
+            regions: [None; 11],
+        }
+    }
+}
+
+impl MK66Config {
+    fn available_region_index(&self) -> Option<usize> {
+        for (index, region) in self.regions.iter().enumerate() {
+            if index == APP_MEMORY_INDEX {
+                continue;
+            }
+            if let None = region {
+                return Some(index);
+            }
+        }
+        None
+    }
+}
+
+struct Region {
+    start: u32,
+    end: u32,
+    permissions: u32,
+};
+
+impl Region {
+    fn new(
+        start: u32,
+        end: u32,
+        permissions: Permissions,
+    ) -> Region {
+        let permissions = match permissions {
+            Permissions::ReadWriteExecute => 0b111,
+            Permissions::ReadWriteOnly => 0b110,
+            Permissions::ReadExecuteOnly => 0b101,
+            Permissions::ReadOnly => 0b100,
+            Permissions::ExecuteOnly => 0b001,
+        };
+
+        Region {
+            start: start,
+            end: end,
+            permissions: permissions,
+        }
+    }
+
+    fn start(&self) -> u32 {
+        self.start
+    }
+
+    fn end(&self) -> u32 {
+        self.end
+    }
+
+    fn permissions(&self) -> u32 {
+        self.permissions
+    }
+}
+
+// Rounds `x` up to the nearest multiple of `y`.
+fn round_up_to_nearest_multiple(x: u32, y: u32) -> u32 {
+    if x % y == 0 {
+        x
+    } else {
+        x + y - (x % y)
+    }
+}
+
 impl mpu::MPU for Mpu {
+    type MpuConfig = MK66Config;
+    
     fn enable_mpu(&self) {
         let regs = &*self.0;
-
-        // On reset, region descriptor 0 is allocated to give full access to 
-        // the entire 4 GB memory space to the core in both supervisor and user
-        // mode, so we disable access for user mode
-        regs.rgdaacs[0].0.modify(RegionDescriptorWord2::M0SM::ReadWriteExecute);
-        regs.rgdaacs[0].0.modify(RegionDescriptorWord2::M0UM::CLEAR);
-
         regs.cesr.modify(ControlErrorStatus::VLD::Enable);
     }    
     
@@ -216,69 +290,161 @@ impl mpu::MPU for Mpu {
         regs.cesr.modify(ControlErrorStatus::VLD::Disable);
     }
 
-    fn create_region(
-        region_num: usize,
-        start: usize,
-        len: usize,
-        execute: mpu::ExecutePermission,
-        access: mpu::AccessPermission,
-    ) -> Option<mpu::Region> {
-        // First region is reserved
-        let region_num = region_num + 1;
-
-        // We only have 12 region descriptors, and regions must be 32-byte aligned
-        if region_num > 11 || start % 32 != 0 || len % 32 != 0 {
-            return None;
+    fn number_total_regions(&self) -> usize {
+        let regs = &*self.0;
+        match regs.cesr.read(ControlErrorStatus::NRGD) {
+            ControlErrorStatus::NRGD::Eight => 8,
+            ControlErrorStatus::NRGD::Twelve => 12,
+            ControlErrorStatus::NRGD::Sixteen => 16,
         }
- 
-        // The end address register is always 31 modulo 32
-        let end = (start + len - 1) & !0x1f;
-
-        let mut user = match access {
-            mpu::AccessPermission::NoAccess => 0b000,
-            mpu::AccessPermission::PrivilegedOnly => 0b000,
-            mpu::AccessPermission::UnprivilegedReadOnly => 0b100,
-            mpu::AccessPermission::ReadWrite => 0b110, 
-            mpu::AccessPermission::Reserved => return None, 
-            mpu::AccessPermission::PrivilegedOnlyReadOnly => 0b000, 
-            mpu::AccessPermission::ReadOnly => 0b100, 
-            mpu::AccessPermission::ReadOnlyAlias => 0b100, 
-        };
-
-        if let mpu::ExecutePermission::ExecutionPermitted = execute {
-            user |= 0b001;
-        }
-
-        // With the current interface, we have to pack all the region configuration into this Cortex-M specific struct
-        let base_address = (start | region_num) as u32;   
-        let attributes = (end | user) as u32;
-
-        let region = unsafe { mpu::Region::new(base_address, attributes) };
-
-        Some(region)
     }
 
-    fn set_mpu(&self, region: mpu::Region) {
-        let regs = &*self.0;
+    fn allocate_region(
+        &self,
+        unallocated_memory_start: *const u8,
+        unallocated_memory_size: usize,
+        min_region_size: usize,
+        permissions: Permissions,
+        config: &mut Self::MpuConfig,
+    ) -> Option<(*const u8, usize)> {
+        // Regions must be aligned to 32 bytes
+        let region_start = round_up_to_nearest_multiple(unallocated_memory_start as u32, 32);
+        let region_size = round_up_to_nearest_multiple(min_region_size as u32, 32);
 
-        let base_address = region.base_address();
-        let attributes = region.attributes();
+        let region_end = region_start + region_size;
+        let unallocated_memory_end = (unallocated_memory_start as u32) + (unallocated_memory_size as u32);
 
-        // This condition is only met if the region end and user permissions are both 0,
-        // or more likely, that process.rs directly passed in a Cortex-M specific "empty" region
-        if attributes == 0 {
-            return;
+        // Make sure we have enough memory for region 
+        if region_end > unallocated_memory_end {
+            return None;
+        }
+        
+        let region = Region::new(region_start, region_end, permissions);
+        
+        let index = match config.available_region_index() {
+            Some(index) => index,
+            None => return None;
         }
 
-        let start = base_address >> 5; 
-        let region_num = (base_address & 0x1f) as usize;
-        let end = attributes >> 5;
-        let user = attributes & 0x7;
+        // Store region
+        let config.regions[index] = Some(region);
 
-        // Write to region descriptor
-        regs.rgds[region_num].rgd_word0.write(RegionDescriptorWord0::SRTADDR.val(start));
-        regs.rgds[region_num].rgd_word1.write(RegionDescriptorWord1::ENDADDR.val(end));
-        regs.rgds[region_num].rgd_word2.write(RegionDescriptorWord2::M0SM::SameAsUserMode + RegionDescriptorWord2::M0UM.val(user));
-        regs.rgds[region_num].rgd_word3.write(RegionDescriptorWord3::VLD::SET);
+        Some((region_start as *const u8, region_size as usize))
+    }
+
+    fn allocate_app_memory_region(
+        &self,
+        unallocated_memory_start: *const u8,
+        unallocated_memory_size: usize,
+        min_memory_size: usize,
+        initial_app_memory_size: usize,
+        initial_kernel_memory_size: usize,
+        permissions: Permissions,
+        config: &mut Self::MpuConfig,
+    ) -> Option<(*const u8, usize)> {
+        let mut memory_size = {
+            if min_memory_size < initial_app_memory_size + initial_kernel_memory_size {
+                initial_app_memory_size + initial_kernel_memory_size
+            } else {
+                min_memory_size
+            }
+        };
+        memory_size = round_up_to_nearest_multiple(memory_size as u32, 32);
+
+        // Process memory block
+        let memory_start = round_up_to_nearest_multiple(unallocated_memory_start as u32, 32);
+
+        // MPU region for app-owned part
+        let region_start = memory_start;
+        let region_size = round_up_to_nearest_multiple(initial_app_memory_size as u32, 32);
+        let region_end = region_start + region_size;
+
+        // Make sure MPU region won't overlap kernel memory
+        if region_size + (initial_kernel_memory_size as u32) > memory_size {
+            memory_size += 32;
+        }
+
+        let memory_end = memory_start + memory_size;
+        let unallocated_memory_end = (unallocated_memory_start as u32) + (unallocated_memory_size as u32);
+        
+        // Make sure we have enough memory for region 
+        if memory_end > unallocated_memory_end {
+            return None;
+        }
+        
+        let region = Region::new(region_start, region_end, permissions);
+
+        // Store region
+        let config.regions[APP_MEMORY_INDEX] = Some(region);
+
+        Some((memory_start as *const u8, memory_size as usize))
+    }
+
+    fn update_app_memory_region(
+        &self,
+        app_memory_break: *const u8,
+        kernel_memory_break: *const u8,
+        permissions: Permissions,
+        config: &mut Self::MpuConfig,
+    ) -> Result<(), ()> {
+        // Check that region was actually created
+        if let None = config.regions[APP_MEMORY_INDEX] {
+            return Err(());
+        }
+
+        let (memory_start, memory_end) = match config.memory {
+            Some((start, size)) => (start, size),
+            None => return Err(());
+        };
+
+        if memory_start % 32 != 0 || memory_end % 32 != 0 {
+            return Err(());
+        }
+
+        // New region for app memory
+        let region_start = memory_start;
+        let region_end = round_up_to_nearest_multiple(app_memory_break as u32, 32);
+
+        // Check if we have run out of memory 
+        if region_end > (kernel_memory_break as u32) {
+            return Err(());
+        }
+        
+        let region = Region::new(region_start, region_end, permissions);
+
+        // Store region
+        let config.regions[APP_MEMORY_INDEX] = Some(region);
+
+        Ok(())
+    }
+    
+    fn configure_mpu(&self, config: &Self::MpuConfig) {
+        let regs = &*self.0;
+        
+        // On reset, region descriptor 0 is allocated to give full access to 
+        // the entire 4 GB memory space to the core in both supervisor and user
+        // mode, so we disable access for user mode
+        regs.rgdaacs[0].0.modify(RegionDescriptorWord2::M0SM::ReadWriteExecute);
+        regs.rgdaacs[0].0.modify(RegionDescriptorWord2::M0UM::CLEAR);
+
+        // Write regions
+        for (index, region) in config.regions.iter().enumerate() {
+            // Region 0 is reserved
+            let region_num = index + 1;
+
+            match region {
+                Some(region) => {
+                    let start = region.start() >> 5;
+                    let end = region.end() >> 5;
+                    let user = region.permissions();
+
+                    regs.rgds[region_num].rgd_word0.write(RegionDescriptorWord0::SRTADDR.val(start));
+                    regs.rgds[region_num].rgd_word1.write(RegionDescriptorWord1::ENDADDR.val(end));
+                    regs.rgds[region_num].rgd_word2.write(RegionDescriptorWord2::M0SM::SameAsUserMode + RegionDescriptorWord2::M0UM.val(user));
+                    regs.rgds[region_num].rgd_word3.write(RegionDescriptorWord3::VLD::SET);
+                },
+                None => regs.rgds[region_num].rgd_word3.write(RegionDescriptorWord3::VLD::CLEAR),
+            }
+        }
     }
 }
