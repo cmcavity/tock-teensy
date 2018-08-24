@@ -1,13 +1,5 @@
 //! Implementation of the MK66 memory protection unit.
 //!
-//! This implementation relies on some hacks to work around the current
-//! MPU interface, which is highly Cortex-M specific.
-//!
-//! Note that the current process.rs requests a grant region disallowing
-//! user access overlapping a process memory region allowing full user access. 
-//! On this MPU, this overlap gives the user full access the grant region, 
-//! which is unintended behaviour.
-//!
 //! - Author: Conor McAvity <cmcavity@stanford.edu>
 
 use kernel::common::regs::{ReadOnly, ReadWrite};
@@ -41,11 +33,11 @@ struct MpuAlternateAccessControl(
 #[repr(C)]
 struct MpuRegisters {
     cesr: ReadWrite<u32, ControlErrorStatus::Register>,
-    _unused0: [u32; 3],
+    _reserved0: [u32; 3],
     ers: [MpuErrorRegisters; 5],
-    _unused1: [u32; 242],
+    _reserved1: [u32; 242],
     rgds: [MpuRegionDescriptor; 12],
-    _unused2: [u32; 208],
+    _reserved2: [u32; 208],
     rgdaacs: [MpuAlternateAccessControl; 12],
 }
 
@@ -135,10 +127,10 @@ register_bitfields![u32,
         M3PE OFFSET(23) NUMBITS(1) [],
         /// Bus Master 3 Supervisor Mode Access Control
         M3SM OFFSET(21) NUMBITS(2) [
-            ReadWriteExecute = 0b00,
-            ReadExecuteOnly = 0b01,
-            ReadWriteOnly = 0b10,
-            SameAsUserMode = 0b11 
+            ReadWriteExecute = 0,
+            ReadExecuteOnly = 1,
+            ReadWriteOnly = 2,
+            SameAsUserMode = 3 
         ],
         /// Bus Master 3 User Mode Access Control
         M3UM OFFSET(18) NUMBITS(3) [],
@@ -146,10 +138,10 @@ register_bitfields![u32,
         M2PE OFFSET(17) NUMBITS(1) [],
         /// Bus Master 2 Supervisor Mode Access Control
         M2SM OFFSET(15) NUMBITS(2) [
-            ReadWriteExecute = 0b00,
-            ReadExecuteOnly = 0b01,
-            ReadWriteOnly = 0b10,
-            SameAsUserMode = 0b11 
+            ReadWriteExecute = 0,
+            ReadExecuteOnly = 1,
+            ReadWriteOnly = 2,
+            SameAsUserMode = 3 
         ],
         /// Bus Master 2 User Mode Access Control 
         M2UM OFFSET(12) NUMBITS(3) [],
@@ -157,10 +149,10 @@ register_bitfields![u32,
         M1PE OFFSET(11) NUMBITS(1) [],
         /// Bus Master 1 Supervisor Mode Access Control
         M1SM OFFSET(9) NUMBITS(2) [
-            ReadWriteExecute = 0b00,
-            ReadExecuteOnly = 0b01,
-            ReadWriteOnly = 0b10,
-            SameAsUserMode = 0b11 
+            ReadWriteExecute = 0,
+            ReadExecuteOnly = 1,
+            ReadWriteOnly = 2,
+            SameAsUserMode = 3 
         ],
         /// Bus Master 1 User Mode Access Control
         M1UM OFFSET(6) NUMBITS(3) [],
@@ -168,10 +160,10 @@ register_bitfields![u32,
         M0PE OFFSET(5) NUMBITS(1) [],
         /// Bus Master 0 Supervisor Mode Access Control
         M0SM OFFSET(3) NUMBITS(2) [
-            ReadWriteExecute = 0b00,
-            ReadExecuteOnly = 0b01,
-            ReadWriteOnly = 0b10,
-            SameAsUserMode = 0b11 
+            ReadWriteExecute = 0,
+            ReadExecuteOnly = 1,
+            ReadWriteOnly = 2,
+            SameAsUserMode = 3 
         ],
         /// Bus Master 0 User Mode Access Control 
         M0UM OFFSET(0) NUMBITS(3) []
