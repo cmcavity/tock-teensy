@@ -190,7 +190,7 @@ impl Mpu {
     }
 }
 
-const APP_MEMORY_INDEX = 1;
+const APP_MEMORY_INDEX: usize = 1;
 
 pub struct MK66Config {
     memory: Option<(u32, u32)>,
@@ -224,7 +224,7 @@ struct Region {
     start: u32,
     end: u32,
     permissions: u32,
-};
+}
 
 impl Region {
     fn new(
@@ -315,11 +315,11 @@ impl mpu::MPU for Mpu {
         
         let index = match config.available_region_index() {
             Some(index) => index,
-            None => return None;
-        }
+            None => return None,
+        };
 
         // Store region
-        let config.regions[index] = Some(region);
+        config.regions[index] = Some(region);
 
         Some((region_start as *const u8, region_size as usize))
     }
@@ -367,7 +367,7 @@ impl mpu::MPU for Mpu {
         let region = Region::new(region_start, region_end, permissions);
 
         // Store region
-        let config.regions[APP_MEMORY_INDEX] = Some(region);
+        config.regions[APP_MEMORY_INDEX] = Some(region);
 
         Some((memory_start as *const u8, memory_size as usize))
     }
@@ -386,7 +386,7 @@ impl mpu::MPU for Mpu {
 
         let (memory_start, memory_end) = match config.memory {
             Some((start, size)) => (start, size),
-            None => return Err(());
+            None => return Err(()),
         };
 
         if memory_start % 32 != 0 || memory_end % 32 != 0 {
@@ -405,7 +405,7 @@ impl mpu::MPU for Mpu {
         let region = Region::new(region_start, region_end, permissions);
 
         // Store region
-        let config.regions[APP_MEMORY_INDEX] = Some(region);
+        config.regions[APP_MEMORY_INDEX] = Some(region);
 
         Ok(())
     }
